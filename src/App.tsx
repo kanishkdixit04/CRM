@@ -4,6 +4,7 @@ import {
   CalendarClock,
   CheckCircle2,
   ClipboardCheck,
+  ClipboardList,
   FileSpreadsheet,
   GraduationCap,
   LogOut,
@@ -14,6 +15,8 @@ import {
   Send,
   ShieldAlert,
   Sparkles,
+  Trash2,
+  UploadCloud,
   Users,
 } from 'lucide-react';
 import { Session } from '@supabase/supabase-js';
@@ -53,33 +56,45 @@ const initialLeadForm: NewLeadForm = {
   registration_source: 'Website',
 };
 
+const logoSrc = '/images/spikitech-logo-cropped.png';
+
 const workflowSteps = [
   {
     label: 'Day 1',
     title: 'Assessment first',
-    detail: 'Take assessment, record score, then send parent feedback and Day 2 activity reminder.',
+    detail: 'Assessment, score, mentor note, then parent feedback.',
   },
   {
     label: 'Day 2',
     title: 'Repeat assessment loop',
-    detail: 'Capture second assessment, participation and pain points, then send progress feedback.',
+    detail: 'Second assessment, participation, pain points, then progress feedback.',
   },
   {
     label: 'Day 3',
-    title: 'Counseling and slot booking',
-    detail: 'Prepare certificate, pitch counseling meeting, capture objection and book the slot.',
+    title: 'Counseling slot',
+    detail: 'Pitch parent counseling, capture objection, and book the meeting.',
   },
   {
     label: 'Day 4',
-    title: 'Certificate and tag request',
-    detail: 'Send certificate and ask parent to tag SpikiTech in a story or post.',
+    title: 'Certificate share',
+    detail: 'Send certificate and request SpikiTech tag in story or post.',
   },
   {
-    label: 'Post Bootcamp',
-    title: 'Next-day conversion activity',
-    detail: 'Share progress summary, recommend program, schedule payment or nurture follow-up.',
+    label: 'After Bootcamp',
+    title: 'Next-day follow-up',
+    detail: 'Progress summary, program recommendation, payment or nurture follow-up.',
   },
 ];
+
+const quickActionLabels: Record<string, string> = {
+  day1: 'Day 1 Done',
+  day2: 'Day 2 Done',
+  day3: 'Day 3 Done',
+  'no-answer': 'No Answer',
+  connected: 'Connected',
+  counseling: 'Book Meeting',
+  certificate: 'Certificate Sent',
+};
 
 function compactPhone(value: string) {
   return value.replace(/[^\d+]/g, '');
@@ -186,6 +201,8 @@ function App() {
       dataFix: active.filter((lead) => getMissingFields(lead).length > 0).length,
     };
   }, [leads]);
+
+  const focusLead = sortedLeads[0];
 
   async function loadData() {
     if (!supabase) return;
@@ -719,6 +736,33 @@ function App() {
     }
   }
 
+  async function deleteLead(lead: Lead) {
+    if (!supabase) return;
+
+    const confirmed = window.confirm(
+      `Delete lead for ${lead.student_name}? This will remove the lead and its activity history from the CRM.`,
+    );
+
+    if (!confirmed) return;
+
+    setBusy(true);
+    setError('');
+    setNotice('');
+
+    try {
+      const { error: deleteError } = await supabase.from('leads').delete().eq('id', lead.id);
+      if (deleteError) throw deleteError;
+
+      setNotice(`Deleted lead: ${lead.student_name}`);
+      await loadData();
+    } catch (caught) {
+      const message = caught instanceof Error ? caught.message : 'Lead delete failed.';
+      setError(message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (!hasSupabaseConfig) {
     return (
       <main className="center-screen">
@@ -741,11 +785,11 @@ function App() {
 
   if (!session) {
     return (
-      <main className="center-screen">
+      <main className="center-screen branded-login">
         <form className="auth-panel" onSubmit={signIn}>
-          <GraduationCap />
-          <h1>SpikiTech Bootcamp CRM</h1>
-          <p>Sign in to manage parent engagement, assessments, counseling and certificate follow-up.</p>
+          <img className="auth-logo" src={logoSrc} alt="SpikiTech" />
+          <h1>SpikiTech CRM</h1>
+          <p>Parent engagement desk for bootcamp leads, feedback calls, counseling and certificates.</p>
           <label>
             Login ID
             <input
@@ -779,17 +823,16 @@ function App() {
   return (
     <main className="app-shell">
       <header className="topbar">
-        <div>
-          <p className="eyebrow">SpikiTech enrollment operations</p>
-          <h1>Bootcamp Parent Engagement CRM</h1>
+        <div className="brand-lockup">
+          <img className="app-logo" src={logoSrc} alt="SpikiTech" />
+          <div>
+            <p className="eyebrow">SpikiTech CRM</p>
+            <h1>Parent Engagement Desk</h1>
+          </div>
         </div>
         <div className="topbar-actions">
           <button onClick={loadData} disabled={busy} title="Refresh data">
             <RefreshCw size={18} className={busy ? 'spin' : ''} />
-          </button>
-          <button className="primary-button" onClick={runCycle} disabled={busy || sortedLeads.length === 0}>
-            <Play size={18} />
-            Run cycle
           </button>
           <button onClick={() => supabase?.auth.signOut()} title="Sign out">
             <LogOut size={18} />
@@ -811,13 +854,42 @@ function App() {
         </div>
       )}
 
+      <section className="workbench">
+        <div className="workbench-main">
+          <p className="eyebrow">Next lead to handle</p>
+          <h2>{focusLead ? focusLead.student_name : 'No active lead due'}</h2>
+          <p>
+            {focusLead
+              ? focusLead.next_action ?? 'Add a clear next action for this lead.'
+              : 'The active queue is clear right now.'}
+          </p>
+          {focusLead && (
+            <div className="focus-meta">
+              <span>{focusLead.parent_name ?? 'Parent missing'}</span>
+              <span>{focusLead.parent_primary_number ?? 'Phone missing'}</span>
+              <span>{formatDate(focusLead.next_action_at)}</span>
+            </div>
+          )}
+        </div>
+        <div className="workbench-side">
+          <button className="primary-button" onClick={runCycle} disabled={busy || sortedLeads.length === 0}>
+            <Play size={18} />
+            Prepare Today&apos;s Work
+          </button>
+          <button onClick={loadData} disabled={busy}>
+            <RefreshCw size={18} className={busy ? 'spin' : ''} />
+            Refresh CRM
+          </button>
+        </div>
+      </section>
+
       <section className="metrics-grid">
-        <Metric icon={<Users />} label="Active leads" value={metrics.active} />
-        <Metric icon={<Sparkles />} label="Hot leads" value={metrics.hot} />
-        <Metric icon={<CalendarClock />} label="Overdue / missing" value={metrics.overdue} />
-        <Metric icon={<GraduationCap />} label="Day 3 certificate due" value={metrics.day3Ready} />
-        <Metric icon={<MessageSquareText />} label="Payment pending" value={metrics.paymentPending} />
-        <Metric icon={<ShieldAlert />} label="Data correction" value={metrics.dataFix} />
+        <Metric icon={<Users />} label="Parents to handle" value={metrics.active} />
+        <Metric icon={<Sparkles />} label="High priority" value={metrics.hot} />
+        <Metric icon={<CalendarClock />} label="Late or missing" value={metrics.overdue} />
+        <Metric icon={<GraduationCap />} label="Certificates due" value={metrics.day3Ready} />
+        <Metric icon={<MessageSquareText />} label="Payment follow-ups" value={metrics.paymentPending} />
+        <Metric icon={<ShieldAlert />} label="Data to fix" value={metrics.dataFix} />
       </section>
 
       <section className="workflow-band">
@@ -835,8 +907,8 @@ function App() {
           <div className="section-title">
             <ClipboardCheck />
             <div>
-              <h2>New Registration</h2>
-              <p>Creates Lead ID, counselor ownership and first parent callback.</p>
+              <h2>Add One Lead</h2>
+              <p>Use this when one parent registers manually.</p>
             </div>
           </div>
           <div className="form-grid">
@@ -904,10 +976,10 @@ function App() {
 
         <section className="panel import-panel">
           <div className="section-title">
-            <FileSpreadsheet />
+            <UploadCloud />
             <div>
-              <h2>Excel Import</h2>
-              <p>Upload `.xlsx` or `.csv` to create or update CRM leads.</p>
+              <h2>Fill From Excel</h2>
+              <p>Use this when registrations are already in a sheet.</p>
             </div>
           </div>
           <label className="file-drop">
@@ -919,7 +991,7 @@ function App() {
             />
             <FileSpreadsheet size={24} />
             <strong>{importFileName || 'Choose Excel or CSV file'}</strong>
-            <span>Headers like Student Name, Parent Phone, Batch, Day 1 Attendance and Next Action are detected.</span>
+            <span>Student Name, Parent Phone, Batch, Attendance, Stage and Next Action are detected.</span>
           </label>
           {importRows.length > 0 && (
             <>
@@ -963,10 +1035,10 @@ function App() {
 
         <section className="panel">
           <div className="section-title">
-            <ClipboardCheck />
+            <ClipboardList />
             <div>
-              <h2>KRA and KPI</h2>
-              <p>Assessment, feedback, certificate, parent tagging and post-bootcamp ownership.</p>
+              <h2>Team KRA / KPI</h2>
+              <p>Daily ownership for assessment, feedback, counseling and certificate work.</p>
             </div>
           </div>
           <div className="kra-list">
@@ -989,21 +1061,22 @@ function App() {
         <div className="section-title">
           <PhoneCall />
           <div>
-            <h2>Priority Queue</h2>
-            <p>Oldest due work is pushed forward first; terminal leads are removed from this queue.</p>
+            <h2>Today&apos;s Parent Queue</h2>
+            <p>Work from the top. Each row shows the parent, current status and next action.</p>
           </div>
         </div>
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>Lead</th>
+                <th>Student</th>
                 <th>Parent</th>
-                <th>Stage</th>
+                <th>Status</th>
                 <th>Priority</th>
-                <th>Next action</th>
-                <th>Due</th>
-                <th>Quick actions</th>
+                <th>Next work</th>
+                <th>When</th>
+                <th>Mark Result</th>
+                <th>Manage</th>
               </tr>
             </thead>
             <tbody>
@@ -1027,34 +1100,44 @@ function App() {
                   <td>
                     <div className="action-row">
                       <button title="Day 1 assessment done" onClick={() => quickAction(lead, 'day1')} disabled={busy}>
-                        D1
+                        {quickActionLabels.day1}
                       </button>
                       <button title="Day 2 assessment done" onClick={() => quickAction(lead, 'day2')} disabled={busy}>
-                        D2
+                        {quickActionLabels.day2}
                       </button>
                       <button title="Day 3 completed" onClick={() => quickAction(lead, 'day3')} disabled={busy}>
-                        D3
+                        {quickActionLabels.day3}
                       </button>
                       <button title="No answer" onClick={() => quickAction(lead, 'no-answer')} disabled={busy}>
                         <PhoneCall size={16} />
+                        {quickActionLabels['no-answer']}
                       </button>
                       <button title="Parent connected" onClick={() => quickAction(lead, 'connected')} disabled={busy}>
                         <MessageSquareText size={16} />
+                        {quickActionLabels.connected}
                       </button>
                       <button title="Book counseling" onClick={() => quickAction(lead, 'counseling')} disabled={busy}>
                         <CalendarClock size={16} />
+                        {quickActionLabels.counseling}
                       </button>
                       <button title="Send certificate and tag request" onClick={() => quickAction(lead, 'certificate')} disabled={busy}>
                         <GraduationCap size={16} />
+                        {quickActionLabels.certificate}
                       </button>
                     </div>
                     {getMissingFields(lead).length > 0 && <small>Missing: {getMissingFields(lead).join(', ')}</small>}
+                  </td>
+                  <td>
+                    <button className="danger-button" title="Delete lead" onClick={() => deleteLead(lead)} disabled={busy}>
+                      <Trash2 size={16} />
+                      Delete
+                    </button>
                   </td>
                 </tr>
               ))}
               {sortedLeads.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="empty-state">
+                  <td colSpan={8} className="empty-state">
                     No active leads in the queue.
                   </td>
                 </tr>
