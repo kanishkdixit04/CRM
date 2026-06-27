@@ -33,6 +33,15 @@ The app is already pointed at:
 https://jozkatvurojtajcxjmet.supabase.co
 ```
 
+For hosted deployments, set these environment variables if your platform supports them. The app also has public fallbacks for the same project, so a missing env file should not create a blank screen.
+
+```text
+VITE_SUPABASE_URL=https://jozkatvurojtajcxjmet.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable__KCVSGfedr7Z8AdVOTvCfw_rBu7giXu
+VITE_LOGIN_ID=spikitechvivudh.com
+VITE_LOGIN_EMAIL=admin@spikitechvivudh.com
+```
+
 Apply the schema with the real database password from Supabase Project Settings:
 
 ```bash
