@@ -25,6 +25,24 @@ Open:
 http://127.0.0.1:5173
 ```
 
+## Deployment
+
+Use these settings on Vercel, Netlify or similar hosts:
+
+```text
+Build command: npm run build
+Output / publish directory: dist
+Install command: npm ci
+```
+
+If using GitHub Pages, enable Pages with:
+
+```text
+Source: GitHub Actions
+```
+
+The included `.github/workflows/deploy-pages.yml` workflow builds the Vite app and publishes the `dist` folder. Do not deploy the raw repository root, because Vite source files such as `src/main.tsx` are not directly runnable in production.
+
 ## Supabase setup
 
 The app is already pointed at:
